@@ -88,6 +88,7 @@ async function runMediasoupWorker(worker, mediasoupRouter) {
 
   const mediaCodecs = config.mediasoup.router.mediaCodecs;
   mediasoupRouter = await worker.createRouter({ mediaCodecs });
+  return { worker, mediasoupRouter };
 }
 
 export { createConsumer, createWebRtcTransport, runMediasoupWorker };
