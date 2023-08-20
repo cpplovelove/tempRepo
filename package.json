@@ -4,18 +4,38 @@
   "description": "Mediasoup Sample App",
   "main": "server.js",
   "scripts": {
-    "start": "browserify client.js -o app-bundle.js; node server.js"
-  },
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "express": "^4.16.4",
-    "mediasoup": "3",
-    "mediasoup-client": "3",
-    "socket.io": "^2.2.0",
-    "socket.io-client": "^2.2.0"
+    "start": "node app.js"
   },
   "devDependencies": {
-    "requirejs": "^2.3.6"
-  }
+    "@babel/cli": "^7.14.5",
+    "@babel/core": "^7.14.6",
+    "@babel/node": "^7.14.7",
+    "@babel/preset-env": "^7.14.7",
+    "nodemon": "^2.0.12"
+  },
+  "dependencies": {
+    "@sentry/integrations": "7.32.0",
+    "@sentry/node": "7.32.0",
+    "@socket.io/admin-ui": "^0.2.0",
+    "body-parser": "1.20.1",
+    "browserify": "^17.0.0",
+    "colors": "1.4.0",
+    "compression": "1.7.4",
+    "cors": "2.8.5",
+    "crypto": "^1.0.1",
+    "express": "^4.18.2",
+    "httpolyglot": "0.1.2",
+    "localtunnel": "^2.0.1",
+    "mediasoup": "^3.11.6",
+    "mediasoup-client": "^3.6.71",
+    "mongoose": "^6.8.4",
+    "pug": "^3.0.2",
+    "socket.io": "^4.1.3",
+    "socket.io-client": "^4.7.1",
+    "swagger-ui-express": "4.6.0",
+    "uuid": "9.0.0",
+    "ws": "^7.5.3",
+    "yamljs": "0.3.0"
+  },
+  "type": "module"
 }
