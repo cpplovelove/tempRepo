@@ -10,6 +10,7 @@ import fs from "fs";
 import cors from "cors";
 import { WebRtcTransport } from "mediasoup/node/lib/WebRtcTransport.js";
 
+let flag = false;
 let server;
 let socketServer;
 let app;
@@ -45,7 +46,6 @@ let producerTransport;
       await runMediasoupWorker(worker, mediasoupRouter);
     (worker = tempWorker), (mediasoupRouter = tempRouter);
 
-    console.log(mediasoupRouter);
     await runSocketServer();
   } catch (err) {
     console.error(err);
@@ -90,22 +90,7 @@ async function runSocketServer() {
           mediasoupRouter
         );
         producerTransport = transport;
-        // callback(params);
         socket.emit("getCreatedProducerTransport", params);
-
-        //일단 파라미터 넘김
-        socket.emit("sendDtlsParams", {
-          dtlsParameters: {
-            role: "server",
-            fingerprints: [
-              {
-                algorithm: "sha-256",
-                value:
-                  "E5:F5:CA:A7:2D:93:E6:16:AC:21:09:9F:23:51:62:8C:D0:66:E9:0C:22:54:2B:82:0C:DF:E0:C5:2C:7E:CD:53",
-              },
-            ],
-          },
-        });
       } catch (err) {
         console.error(err);
       }
@@ -125,8 +110,8 @@ async function runSocketServer() {
     });
 
     socket.on("connectProducerTransport", async (data, callback) => {
-      const tempdtlsParameters = data.dtlsParameters;
-      await producerTransport.connect(tempdtlsParameters);
+      console.log(producerTransport);
+      await producerTransport.connect({ dtlsParameters: data.dtlsParameters });
       console.log("producer connection 성공");
     });
 
@@ -140,6 +125,7 @@ async function runSocketServer() {
 
       const { kind, rtpParameters } = data;
       producer = await producerTransport.produce({ kind, rtpParameters });
+
       socket.broadcast.emit("newProducer");
     });
 
