@@ -2,9 +2,13 @@ import mediasoup from "mediasoup";
 import config from "../config/config.js";
 
 let consumer;
-let consumerTransport;
 
-async function createConsumer(producer, rtpCapabilities) {
+async function createConsumer(
+  mediasoupRouter,
+  producer,
+  consumerTransport,
+  rtpCapabilities
+) {
   //consume 가능한 지 확인
   if (
     !mediasoupRouter.canConsume({

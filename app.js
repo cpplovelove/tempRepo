@@ -4,7 +4,11 @@ import path from "path";
 import https from "https";
 import express from "express";
 import initService from "./server/init.js";
-import { runMediasoupWorker, createWebRtcTransport } from "./server/service.js";
+import {
+  runMediasoupWorker,
+  createWebRtcTransport,
+  createConsumer,
+} from "./server/service.js";
 import socketIo from "socket.io";
 import fs from "fs";
 import cors from "cors";
@@ -26,6 +30,7 @@ let worker;
 let mediasoupRouter;
 let producer;
 let producerTransport;
+let consumerTransport;
 
 (async () => {
   try {
@@ -102,22 +107,77 @@ async function runSocketServer() {
           mediasoupRouter
         );
         consumerTransport = transport;
-        callback(params);
+        console.log("create consumer");
+
+        socket.emit("getCreatedConsumerTransport", params);
       } catch (err) {
         console.error(err);
-        callback({ error: err.message });
       }
     });
 
     socket.on("connectProducerTransport", async (data, callback) => {
       console.log(producerTransport);
       await producerTransport.connect({ dtlsParameters: data.dtlsParameters });
+      //잠깐 produce 넣기
+      producer = await producerTransport.produce({
+        kind: "video",
+        rtpParameters: {
+          mid: "1",
+          codecs: [
+            {
+              mimeType: "video/VP8",
+              payloadType: 101,
+              clockRate: 90000,
+              rtcpFeedback: [
+                { type: "nack" },
+                { type: "nack", parameter: "pli" },
+                { type: "ccm", parameter: "fir" },
+                { type: "goog-remb" },
+              ],
+            },
+            {
+              mimeType: "video/rtx",
+              payloadType: 102,
+              clockRate: 90000,
+              parameters: { apt: 101 },
+            },
+          ],
+          headerExtensions: [
+            {
+              id: 2,
+              uri: "urn:ietf:params:rtp-hdrext:sdes:mid",
+            },
+            {
+              id: 3,
+              uri: "urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id",
+            },
+            {
+              id: 5,
+              uri: "urn:3gpp:video-orientation",
+            },
+            {
+              id: 6,
+              uri: "http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time",
+            },
+          ],
+          encodings: [
+            { rid: "r0", active: true, maxBitrate: 100000 },
+            { rid: "r1", active: true, maxBitrate: 300000 },
+            { rid: "r2", active: true, maxBitrate: 900000 },
+          ],
+          rtcp: {
+            cname: "Zjhd656aqfoo",
+          },
+        },
+      });
+      console.log("제발" + producer);
+      socket.broadcast.emit("newProducer");
       console.log("producer connection 성공");
     });
 
     socket.on("connectConsumerTransport", async (data, callback) => {
       await consumerTransport.connect({ dtlsParameters: data.dtlsParameters });
-      callback();
+      console.log("consumer connection");
     });
 
     socket.on("produce", async (data, callback) => {
@@ -130,7 +190,16 @@ async function runSocketServer() {
     });
 
     socket.on("consume", async (data, callback) => {
-      callback(await createConsumer(producer, data.rtpCapabilities));
+      console.log("consume 하는 거임");
+      socket.emit(
+        "consumeResult",
+        await createConsumer(
+          mediasoupRouter,
+          producer,
+          consumerTransport,
+          data.rtpCapabilities
+        )
+      );
     });
 
     socket.on("resume", async (data, callback) => {
