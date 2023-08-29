@@ -121,6 +121,7 @@ async function runSocketServer() {
 
     socket.on("connectProducerTransport", async (data, callback) => {
       await producerTransport.connect({ dtlsParameters: data.dtlsParameters });
+      console.log("-------이건 진짜 대야함 producerSendTransport 연결");
       callback();
     });
 

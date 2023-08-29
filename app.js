@@ -1,20 +1,15 @@
 import { fileURLToPath } from "url";
+import config from "./config.js";
 
 import path from "path";
 import https from "https";
 import express from "express";
-import initService from "./server/init.js";
-import {
-  runMediasoupWorker,
-  createWebRtcTransport,
-  createConsumer,
-} from "./server/service.js";
+import mediasoup from "mediasoup";
+
 import socketIo from "socket.io";
 import fs from "fs";
 import cors from "cors";
-import { WebRtcTransport } from "mediasoup/node/lib/WebRtcTransport.js";
 
-let flag = false;
 let server;
 let socketServer;
 let app;
@@ -47,9 +42,7 @@ let consumerTransport;
       console.log(`✅ open https://localhost:5000 in your web browser`);
     });
 
-    const { worker: tempWorker, mediasoupRouter: tempRouter } =
-      await runMediasoupWorker(worker, mediasoupRouter);
-    (worker = tempWorker), (mediasoupRouter = tempRouter);
+    await runMediasoupWorker();
 
     await runSocketServer();
   } catch (err) {
@@ -107,7 +100,7 @@ async function runSocketServer() {
           mediasoupRouter
         );
         consumerTransport = transport;
-        console.log("create consumer");
+        console.log("1.5 create consumer 생성함");
 
         socket.emit("getCreatedConsumerTransport", params);
       } catch (err) {
@@ -116,81 +109,35 @@ async function runSocketServer() {
     });
 
     socket.on("connectProducerTransport", async (data, callback) => {
-      console.log(producerTransport);
       await producerTransport.connect({ dtlsParameters: data.dtlsParameters });
-      //잠깐 produce 넣기
-      producer = await producerTransport.produce({
-        kind: "video",
-        rtpParameters: {
-          mid: "1",
-          codecs: [
-            {
-              mimeType: "video/VP8",
-              payloadType: 101,
-              clockRate: 90000,
-              rtcpFeedback: [
-                { type: "nack" },
-                { type: "nack", parameter: "pli" },
-                { type: "ccm", parameter: "fir" },
-                { type: "goog-remb" },
-              ],
-            },
-            {
-              mimeType: "video/rtx",
-              payloadType: 102,
-              clockRate: 90000,
-              parameters: { apt: 101 },
-            },
-          ],
-          headerExtensions: [
-            {
-              id: 2,
-              uri: "urn:ietf:params:rtp-hdrext:sdes:mid",
-            },
-            {
-              id: 3,
-              uri: "urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id",
-            },
-            {
-              id: 5,
-              uri: "urn:3gpp:video-orientation",
-            },
-            {
-              id: 6,
-              uri: "http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time",
-            },
-          ],
-          encodings: [
-            { rid: "r0", active: true, maxBitrate: 100000 },
-            { rid: "r1", active: true, maxBitrate: 300000 },
-            { rid: "r2", active: true, maxBitrate: 900000 },
-          ],
-          rtcp: {
-            cname: "Zjhd656aqfoo",
-          },
-        },
-      });
-      console.log("제발" + producer);
-      socket.broadcast.emit("newProducer");
-      console.log("producer connection 성공");
+      console.log("1. producer connection 됐음");
+      callback();
     });
 
     socket.on("connectConsumerTransport", async (data, callback) => {
       await consumerTransport.connect({ dtlsParameters: data.dtlsParameters });
-      console.log("consumer connection");
+      console.log("2. consumer connection 됐음");
+    });
+
+    socket.on("Tq", () => {
+      console.log("tq");
     });
 
     socket.on("produce", async (data, callback) => {
-      console.log("produce 하다");
-
+      console.log("produce로 들어옴 : ", producer.id);
       const { kind, rtpParameters } = data;
-      producer = await producerTransport.produce({ kind, rtpParameters });
+      try {
+        producer = await producerTransport.produce({ kind, rtpParameters });
 
-      socket.broadcast.emit("newProducer");
+        console.log("2. produce 함 : ", producer.id);
+        socket.broadcast.emit("newProducer");
+      } catch (err) {
+        console.log(err);
+      }
     });
 
     socket.on("consume", async (data, callback) => {
-      console.log("consume 하는 거임");
+      console.log("consume 하는 거임\n", data);
       socket.emit(
         "consumeResult",
         await createConsumer(
@@ -207,4 +154,88 @@ async function runSocketServer() {
       callback();
     });
   });
+}
+
+async function runMediasoupWorker() {
+  worker = await mediasoup.createWorker({
+    logLevel: config.mediasoup.worker.logLevel,
+    logTags: config.mediasoup.worker.logTags,
+    rtcMinPort: config.mediasoup.worker.rtcMinPort,
+    rtcMaxPort: config.mediasoup.worker.rtcMaxPort,
+  });
+
+  worker.on("died", () => {
+    console.error(
+      "mediasoup worker died, exiting in 2 seconds... [pid:%d]",
+      worker.pid
+    );
+    setTimeout(() => process.exit(1), 2000);
+  });
+
+  const mediaCodecs = config.mediasoup.router.mediaCodecs;
+  mediasoupRouter = await worker.createRouter({ mediaCodecs });
+}
+
+async function createWebRtcTransport() {
+  const { maxIncomingBitrate, initialAvailableOutgoingBitrate } =
+    config.mediasoup.webRtcTransport;
+
+  const transport = await mediasoupRouter.createWebRtcTransport({
+    listenIps: config.mediasoup.webRtcTransport.listenIps,
+    enableUdp: true,
+    enableTcp: true,
+    preferUdp: true,
+    initialAvailableOutgoingBitrate,
+  });
+  if (maxIncomingBitrate) {
+    try {
+      await transport.setMaxIncomingBitrate(maxIncomingBitrate);
+    } catch (error) {}
+  }
+  return {
+    transport,
+    params: {
+      id: transport.id,
+      iceParameters: transport.iceParameters,
+      iceCandidates: transport.iceCandidates,
+      dtlsParameters: transport.dtlsParameters,
+    },
+  };
+}
+
+async function createConsumer(producer, rtpCapabilities) {
+  console.log("producer id : " + producer.id);
+  if (
+    !mediasoupRouter.canConsume({
+      producerId: producer.id,
+      rtpCapabilities,
+    })
+  ) {
+    console.error("can not consume");
+    return;
+  }
+  try {
+    //producer을 안심어줬는데 어디서 가져온건지? 왜 can not consume 이 나오는 건지?
+    consumer = await consumerTransport.consume({
+      producerId: producer.id,
+      rtpCapabilities,
+      paused: producer.kind === "video",
+    });
+  } catch (error) {
+    console.error("consume failed", error);
+    return;
+  }
+
+  if (consumer.type === "simulcast") {
+    await consumer.setPreferredLayers({ spatialLayer: 2, temporalLayer: 2 });
+  }
+
+  return {
+    producerId: producer.id,
+    id: consumer.id,
+    kind: consumer.kind,
+    rtpParameters: consumer.rtpParameters,
+    type: consumer.type,
+    producerPaused: consumer.producerPaused,
+  };
 }
