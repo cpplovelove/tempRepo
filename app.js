@@ -6,7 +6,10 @@ import https from "https";
 import express from "express";
 import mediasoup from "mediasoup";
 
-import socketIo from "socket.io";
+// import socketIo from "socket.io";
+// import * as socketIo from "socket.io";
+import Server from "socket.io";
+
 import fs from "fs";
 import cors from "cors";
 
@@ -52,14 +55,13 @@ let consumerTransport;
 
 //소켓 연결되고 방 열리고 이런 것들 만들어야함
 async function runSocketServer() {
-  socketServer = socketIo(server, {
+  socketServer = new Server(server, {
     serveClient: false,
     path: "/server",
     log: false,
     transport: ["websocket"],
     allowEIO3: true,
   });
-
   socketServer.on("connect", (socket) => {
     console.log(`클라이언트 연결 성공 - 소켓ID: ${socket.id}`);
 
@@ -119,15 +121,11 @@ async function runSocketServer() {
       console.log("2. consumer connection 됐음");
     });
 
-    socket.on("Tq", () => {
-      console.log("tq");
-    });
-
     socket.on("produce", async (data, callback) => {
-      console.log("produce로 들어옴 : ", producer.id);
       const { kind, rtpParameters } = data;
       try {
         producer = await producerTransport.produce({ kind, rtpParameters });
+        callback({ id: producer.id });
 
         console.log("2. produce 함 : ", producer.id);
         socket.broadcast.emit("newProducer");

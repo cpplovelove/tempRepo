@@ -29,7 +29,7 @@
     "mediasoup-client": "^3.6.71",
     "mongoose": "^6.8.4",
     "pug": "^3.0.2",
-    "socket.io": "^1.7.4",
+    "socket.io": "^2.2.0",
     "swagger-ui-express": "4.6.0",
     "uuid": "9.0.0",
     "ws": "^7.5.3",
