@@ -27,6 +27,7 @@ const options = {
 let worker;
 let mediasoupRouter;
 let producer;
+let consumer;
 let producerTransport;
 let consumerTransport;
 
@@ -135,16 +136,8 @@ async function runSocketServer() {
     });
 
     socket.on("consume", async (data, callback) => {
-      console.log("consume 하는 거임\n", data);
-      socket.emit(
-        "consumeResult",
-        await createConsumer(
-          mediasoupRouter,
-          producer,
-          consumerTransport,
-          data.rtpCapabilities
-        )
-      );
+      callback(await createConsumer(producer, data.rtpCapabilities));
+      console.log("3. consume 함 : ", consumer.id);
     });
 
     socket.on("resume", async (data, callback) => {
@@ -202,7 +195,6 @@ async function createWebRtcTransport() {
 }
 
 async function createConsumer(producer, rtpCapabilities) {
-  console.log("producer id : " + producer.id);
   if (
     !mediasoupRouter.canConsume({
       producerId: producer.id,
@@ -213,7 +205,6 @@ async function createConsumer(producer, rtpCapabilities) {
     return;
   }
   try {
-    //producer을 안심어줬는데 어디서 가져온건지? 왜 can not consume 이 나오는 건지?
     consumer = await consumerTransport.consume({
       producerId: producer.id,
       rtpCapabilities,
